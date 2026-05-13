@@ -1,0 +1,36 @@
+{
+  "type": "object",
+  "required": ["document_type", "issuer", "date", "total_amount"],
+  "properties": {
+    "document_type": {
+      "type": "string",
+      "description": "The type of document, such as invoice, bank statement, receipt, or tax form."
+    },
+    "issuer": {
+      "type": ["string", "null"],
+      "description": "The organization or person that issued the document."
+    },
+    "date": {
+      "type": ["string", "null"],
+      "description": "Primary document date in ISO format when available."
+    },
+    "total_amount": {
+      "type": ["number", "null"],
+      "description": "The total amount, balance, or amount due."
+    },
+    "currency": {
+      "type": ["string", "null"],
+      "description": "Currency code, such as USD."
+    },
+    "line_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "description": { "type": "string" },
+          "amount": { "type": ["number", "null"] }
+        }
+      }
+    }
+  }
+}

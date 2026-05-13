@@ -1,0 +1,16 @@
+[project]
+name = "local-lm-privacy-workflow"
+version = "0.1.0"
+description = "Privacy-first local/cloud LLM workflow with safe defaults."
+requires-python = ">=3.10"
+dependencies = [
+  "requests>=2.32.0",
+  "pypdf>=4.2.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.2.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
