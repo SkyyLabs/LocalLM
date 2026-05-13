@@ -10,7 +10,8 @@ This project is local-first by default. Files under `data/private/` are assumed 
 - Files in `data/private/` are not committed to Git.
 - Local RAG index files in `data/index/` are not committed to Git.
 - If cloud mode is enabled and a private file is selected, the CLI refuses to continue unless you explicitly confirm with `--yes` or set `ALLOW_CLOUD_PRIVATE_DOCS=true`.
-- The `index` command is local-only and refuses to run when `LLM_PROVIDER=cloud`.
+- The `index` workflow is local-only and refuses to run when `LLM_PROVIDER=cloud`.
+- Direct workflows can load multiple `files` or every supported file under `local_context_folder`; those files follow the same private-document cloud guardrail.
 
 ## What Local Mode Means
 
@@ -31,6 +32,6 @@ Embeddings are generated locally through Ollama using `LOCAL_EMBEDDING_MODEL`. T
 - Keep `LLM_PROVIDER=local` for sensitive documents.
 - Keep `EMBEDDING_PROVIDER=local` for private indexes.
 - Use cloud mode only for non-sensitive documents or after redaction.
-- Review `.env` before running commands.
+- Review `.env` and `config/workflow.json` before running `python main.py`.
 - Do not place real private documents in public repositories.
 - Consider full-disk encryption and local backups for `data/private/`.

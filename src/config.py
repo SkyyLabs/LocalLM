@@ -41,7 +41,11 @@ class Settings(BaseSettings):
 
     app_config_path: Path = Field(default=Path("config/workflow.json"), validation_alias="APP_CONFIG_PATH")
     app_task: TaskName = Field(default="chat", validation_alias=AliasChoices("APP_TASK", "TASK"))
-    app_file: Path | None = Field(default=None, validation_alias=AliasChoices("APP_FILE", "TASK_FILE"))
+    app_files: list[Path] = Field(default_factory=list, validation_alias=AliasChoices("APP_FILES", "TASK_FILES"))
+    app_local_context_folder: Path | None = Field(
+        default=None,
+        validation_alias=AliasChoices("APP_LOCAL_CONTEXT_FOLDER", "TASK_LOCAL_CONTEXT_FOLDER"),
+    )
     app_question: str | None = Field(default=None, validation_alias=AliasChoices("APP_QUESTION", "TASK_QUESTION"))
     app_schema: Path | None = Field(default=None, validation_alias=AliasChoices("APP_SCHEMA", "TASK_SCHEMA"))
     app_path: Path = Field(default=Path("data/private"), validation_alias=AliasChoices("APP_PATH", "TASK_PATH"))
@@ -66,7 +70,7 @@ class Settings(BaseSettings):
     def strip_trailing_slash(cls, value: str) -> str:
         return value.rstrip("/")
 
-    @field_validator("app_tags", "app_metadata", "app_filters", mode="before")
+    @field_validator("app_files", "app_tags", "app_metadata", "app_filters", mode="before")
     @classmethod
     def parse_list_env(cls, value: object) -> object:
         if value is None or isinstance(value, list):

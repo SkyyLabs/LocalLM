@@ -1,6 +1,7 @@
 {
   "task": "chat",
-  "file": null,
+  "files": [],
+  "local_context_folder": null,
   "question": null,
   "schema": null,
   "path": "data/private",

@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 from src.chunking import chunk_text
 from src.config import load_settings
-from src.document_loader import load_document
+from src.context_loader import load_resolved_context_documents, resolve_context_files
 from src.embeddings import LocalOllamaEmbeddingProvider
 from src.indexing import build_index_chunks
 from src.metadata import Metadata, parse_key_value_pairs
@@ -34,13 +34,20 @@ def build_messages(system_prompt: str, task_prompt: str, document: str | None = 
     ]
 
 
-def run_llm_task(task_prompt: str, file_path: Path | None, assume_yes: bool = False) -> str:
+def run_llm_task(
+    task_prompt: str,
+    files: list[Path] | None,
+    local_context_folder: Path | None,
+    assume_yes: bool = False,
+) -> str:
     settings = load_settings()
+    context_files = resolve_context_files(files, local_context_folder)
     if settings.is_cloud:
-        print_cloud_warning(file_path)
-    enforce_private_document_policy(file_path=file_path, settings=settings, assume_yes=assume_yes)
+        print_cloud_warning(context_files[0] if len(context_files) == 1 else None)
+    for file_path in context_files:
+        enforce_private_document_policy(file_path=file_path, settings=settings, assume_yes=assume_yes)
 
-    document = load_document(file_path) if file_path else None
+    document = load_resolved_context_documents(context_files)
     system_prompt = load_system_prompt(settings.system_prompt_path)
     provider = create_provider(settings)
     return provider.generate(build_messages(system_prompt, task_prompt, document))
@@ -64,13 +71,18 @@ def format_search_results(results: list[SearchResult]) -> str:
 
 
 def cmd_ask(args: argparse.Namespace) -> int:
-    result = run_llm_task(args.question, args.file, args.yes)
+    result = run_llm_task(args.question, args.files, args.local_context_folder, args.yes)
     print(result)
     return 0
 
 
 def cmd_summarize(args: argparse.Namespace) -> int:
-    result = run_llm_task("Summarize this document clearly and concisely.", args.file, args.yes)
+    result = run_llm_task(
+        "Summarize the provided document context clearly and concisely.",
+        args.files,
+        args.local_context_folder,
+        args.yes,
+    )
     print(result)
     return 0
 
@@ -81,7 +93,7 @@ def cmd_extract(args: argparse.Namespace) -> int:
         "Extract structured data from this document. Return only valid JSON matching this schema:\n"
         f"{json.dumps(schema, indent=2)}"
     )
-    result = run_llm_task(prompt, args.file, args.yes)
+    result = run_llm_task(prompt, args.files, args.local_context_folder, args.yes)
     print(result)
     return 0
 
@@ -189,56 +201,12 @@ def build_filters(filter_values: list[str] | None, tags: list[str] | None) -> Me
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Privacy-first LLM workflow with local-by-default document processing."
+    return argparse.ArgumentParser(
+        description=(
+            "Privacy-first LLM workflow. Configure .env or config/workflow.json, "
+            "then run: python main.py"
+        )
     )
-    subparsers = parser.add_subparsers(dest="command")
-
-    ask = subparsers.add_parser("ask", help="Ask a question about a local document.")
-    ask.add_argument("--file", type=Path, required=True)
-    ask.add_argument("--question", required=True)
-    ask.add_argument("--yes", action="store_true", help="Confirm cloud processing for private documents.")
-    ask.set_defaults(func=cmd_ask)
-
-    summarize = subparsers.add_parser("summarize", help="Summarize a local document.")
-    summarize.add_argument("--file", type=Path, required=True)
-    summarize.add_argument("--yes", action="store_true", help="Confirm cloud processing for private documents.")
-    summarize.set_defaults(func=cmd_summarize)
-
-    extract = subparsers.add_parser("extract", help="Extract structured data using a JSON schema.")
-    extract.add_argument("--file", type=Path, required=True)
-    extract.add_argument("--schema", type=Path, required=True)
-    extract.add_argument("--yes", action="store_true", help="Confirm cloud processing for private documents.")
-    extract.set_defaults(func=cmd_extract)
-
-    chat = subparsers.add_parser("chat", help="Start an interactive chat.")
-    chat.set_defaults(func=cmd_chat)
-
-    index = subparsers.add_parser("index", help="Locally index documents for RAG search.")
-    index.add_argument("--path", type=Path, default=Path("data/private"), help="File or folder to index.")
-    index.add_argument("--tag", action="append", help="Tag to attach to indexed chunks. Can be repeated.")
-    index.add_argument("--metadata", action="append", help="Metadata as key=value. Can be repeated.")
-    index.add_argument("--metadata-file", type=Path, help="JSON metadata map keyed by file path or file name.")
-    index.add_argument("--chunk-size", type=int, default=1200)
-    index.add_argument("--overlap", type=int, default=150)
-    index.set_defaults(func=cmd_index)
-
-    search = subparsers.add_parser("search", help="Search the local vector index.")
-    search.add_argument("--query", required=True)
-    search.add_argument("--tag", action="append", help="Require a tag. Can be repeated.")
-    search.add_argument("--filter", action="append", help="Metadata filter as key=value. Can be repeated.")
-    search.add_argument("--limit", type=int, default=5)
-    search.set_defaults(func=cmd_search)
-
-    ask_index = subparsers.add_parser("ask-index", help="Ask a question over locally indexed documents.")
-    ask_index.add_argument("--question", required=True)
-    ask_index.add_argument("--tag", action="append", help="Require a tag. Can be repeated.")
-    ask_index.add_argument("--filter", action="append", help="Metadata filter as key=value. Can be repeated.")
-    ask_index.add_argument("--limit", type=int, default=5)
-    ask_index.add_argument("--yes", action="store_true", help="Confirm cloud processing for private retrieved chunks.")
-    ask_index.set_defaults(func=cmd_ask_index)
-
-    return parser
 
 
 def run_configured_workflow() -> int:
@@ -259,7 +227,8 @@ def run_configured_workflow() -> int:
 
 def _workflow_to_namespace(workflow: WorkflowConfig) -> SimpleNamespace:
     return SimpleNamespace(
-        file=workflow.file,
+        files=workflow.files,
+        local_context_folder=workflow.local_context_folder,
         question=workflow.question,
         schema=workflow.schema_path,
         path=workflow.path,
@@ -276,11 +245,9 @@ def _workflow_to_namespace(workflow: WorkflowConfig) -> SimpleNamespace:
 
 def main() -> int:
     parser = build_parser()
-    args = parser.parse_args()
+    parser.parse_args()
     try:
-        if args.command is None:
-            return run_configured_workflow()
-        return args.func(args)
+        return run_configured_workflow()
     except UnsafeCloudProcessingError as exc:
         print(f"Refusing unsafe cloud processing: {exc}")
         return 2

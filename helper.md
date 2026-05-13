@@ -79,7 +79,7 @@ CLOUD_LLM_MODEL=gpt-4o-mini
 CLOUD_LLM_API_KEY=your_key_here
 ```
 
-Cloud mode warns before use and refuses private files unless `APP_YES=true`, a CLI `--yes`, or `ALLOW_CLOUD_PRIVATE_DOCS=true` is set.
+Cloud mode warns before use and refuses private files unless `APP_YES=true`, `"yes": true`, or `ALLOW_CLOUD_PRIVATE_DOCS=true` is set.
 
 ## 3. Run the Configured Workflow
 
@@ -103,22 +103,38 @@ Summarize a document:
 
 ```env
 APP_TASK=summarize
-APP_FILE=data/private/tax_doc.pdf
+APP_FILES=data/private/tax_doc.pdf
 ```
 
 Ask a question about one document:
 
 ```env
 APP_TASK=ask
-APP_FILE=data/private/bank_statement.pdf
+APP_FILES=data/private/bank_statement.pdf
 APP_QUESTION=What fees were charged?
+```
+
+Ask a question using multiple direct context files:
+
+```env
+APP_TASK=ask
+APP_FILES=data/private/bank_statement.pdf,data/private/notes.md
+APP_QUESTION=What do these files say about monthly cash flow?
+```
+
+Ask using every supported file in a local folder, recursively:
+
+```env
+APP_TASK=ask
+APP_LOCAL_CONTEXT_FOLDER=data/private/financial
+APP_QUESTION=What are the recurring expenses across these files?
 ```
 
 Extract structured JSON:
 
 ```env
 APP_TASK=extract
-APP_FILE=data/private/invoice.pdf
+APP_FILES=data/private/invoice.pdf
 APP_SCHEMA=schemas/example_schema.json
 ```
 
@@ -169,7 +185,16 @@ Example summarize config:
 ```json
 {
   "task": "summarize",
-  "file": "data/private/tax_doc.pdf"
+  "files": ["data/private/tax_doc.pdf"]
+}
+```
+
+For a single file, this shorter form is also accepted:
+
+```json
+{
+  "task": "summarize",
+  "files": "data/private/tax_doc.pdf"
 }
 ```
 
@@ -178,8 +203,30 @@ Example ask config:
 ```json
 {
   "task": "ask",
-  "file": "data/private/bank_statement.pdf",
+  "files": ["data/private/bank_statement.pdf"],
   "question": "What fees were charged?"
+}
+```
+
+Example multi-file context config:
+
+```json
+{
+  "task": "ask",
+  "files": [
+    "data/private/bank_statement.pdf",
+    "data/private/notes.md"
+  ],
+  "question": "What do these files say about monthly cash flow?"
+}
+```
+
+Example recursive folder context config:
+
+```json
+{
+  "task": "summarize",
+  "local_context_folder": "data/private/financial"
 }
 ```
 
@@ -227,21 +274,7 @@ Then run:
 python main.py
 ```
 
-## 6. Advanced Direct CLI Commands
-
-The no-argument workflow is preferred, but direct commands still work.
-
-```bash
-python main.py chat
-python main.py summarize --file data/private/tax_doc.pdf
-python main.py ask --file data/private/bank_statement.pdf --question "What fees were charged?"
-python main.py extract --file data/private/invoice.pdf --schema schemas/example_schema.json
-python main.py index --path data/private --tag financial --metadata owner=me
-python main.py search --query "account maintenance fees" --tag financial
-python main.py ask-index --question "Which files mention withholding?" --tag taxes
-```
-
-## 7. Vector Store Options
+## 6. Vector Store Options
 
 Default Chroma:
 
@@ -261,7 +294,7 @@ VECTOR_STORE=faiss
 
 Index files are stored in `data/index/` and ignored by Git.
 
-## 8. Privacy Checklist
+## 7. Privacy Checklist
 
 - Use `LLM_PROVIDER=local` for sensitive documents.
 - Keep private files in `data/private/`.
@@ -270,7 +303,7 @@ Index files are stored in `data/index/` and ignored by Git.
 - Do not set `ALLOW_CLOUD_PRIVATE_DOCS=true` unless you intentionally accept cloud processing.
 - Remember that a remote `LOCAL_LLM_BASE_URL` is not local privacy.
 
-## 9. Testing
+## 8. Testing
 
 Run:
 

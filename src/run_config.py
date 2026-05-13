@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from src.config import Settings, TaskName
 
@@ -16,7 +16,8 @@ class WorkflowConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     task: TaskName = "chat"
-    file: Path | None = None
+    files: list[Path] = Field(default_factory=list)
+    local_context_folder: Path | None = None
     question: str | None = None
     schema_path: Path | None = Field(default=None, alias="schema")
     path: Path = Path("data/private")
@@ -29,10 +30,24 @@ class WorkflowConfig(BaseModel):
     overlap: int = 150
     yes: bool = False
 
+    @field_validator("files", "tags", "metadata", "filters", mode="before")
+    @classmethod
+    def parse_list_values(cls, value: object) -> object:
+        if value is None or isinstance(value, list):
+            return value
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return []
+            if stripped.startswith("["):
+                return json.loads(stripped)
+            return [item.strip() for item in stripped.split(",") if item.strip()]
+        return value
+
     @model_validator(mode="after")
     def validate_task_inputs(self) -> "WorkflowConfig":
-        if self.task in {"ask", "summarize", "extract"} and self.file is None:
-            raise ValueError(f"task '{self.task}' requires a file.")
+        if self.task in {"ask", "summarize", "extract"} and not self.files and self.local_context_folder is None:
+            raise ValueError(f"task '{self.task}' requires files or local_context_folder.")
         if self.task in {"ask", "search", "ask-index"} and not self.question:
             raise ValueError(f"task '{self.task}' requires a question.")
         if self.task == "extract" and self.schema_path is None:
@@ -59,7 +74,8 @@ def _load_config_file(path: Path) -> dict[str, Any]:
 def _load_settings_defaults(settings: Settings) -> dict[str, Any]:
     values: dict[str, Any] = {"task": settings.app_task}
     optional_values = {
-        "file": settings.app_file,
+        "files": settings.app_files,
+        "local_context_folder": settings.app_local_context_folder,
         "question": settings.app_question,
         "schema": settings.app_schema,
         "path": settings.app_path,
@@ -84,7 +100,8 @@ def _load_explicit_env_task_values(env_path: Path = Path(".env")) -> dict[str, A
     raw_values = {**_read_env_file(env_path), **os.environ}
     alias_map = {
         "task": ("APP_TASK", "TASK"),
-        "file": ("APP_FILE", "TASK_FILE"),
+        "files": ("APP_FILES", "TASK_FILES"),
+        "local_context_folder": ("APP_LOCAL_CONTEXT_FOLDER", "TASK_LOCAL_CONTEXT_FOLDER"),
         "question": ("APP_QUESTION", "TASK_QUESTION"),
         "schema": ("APP_SCHEMA", "TASK_SCHEMA"),
         "path": ("APP_PATH", "TASK_PATH"),
@@ -120,7 +137,7 @@ def _read_env_file(path: Path) -> dict[str, str]:
 
 
 def _coerce_env_value(field: str, value: str) -> Any:
-    if field in {"tags", "metadata", "filters"}:
+    if field in {"files", "tags", "metadata", "filters"}:
         stripped = value.strip()
         if not stripped:
             return []

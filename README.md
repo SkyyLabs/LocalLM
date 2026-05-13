@@ -9,7 +9,7 @@ A production-ready, privacy-first Python repo for running LLM tasks against loca
 - Reads `.txt`, `.md`, `.pdf`, and `.csv` files.
 - Loads an editable system prompt from `prompts/system_prompt.md`.
 - Runs from `python main.py` using `.env` or `config/workflow.json`.
-- Keeps direct CLI commands available for advanced one-off use.
+- Keeps workflow details out of command-line arguments.
 - Includes local RAG indexing with Ollama embeddings, Chroma by default, optional FAISS, metadata, tags, and filters.
 
 ## Why Local LLMs Matter
@@ -152,13 +152,7 @@ Cloud keys are never hardcoded. Do not commit `.env`.
 
 ## Privacy Guardrail
 
-Files in `data/private/` are considered sensitive. If `LLM_PROVIDER=cloud` and you try to process a file from that folder, the CLI refuses by default.
-
-To explicitly allow a single command:
-
-```bash
-python app.py summarize --file data/private/tax_doc.pdf --yes
-```
+Files in `data/private/` are considered sensitive. If `LLM_PROVIDER=cloud` and the configured workflow tries to process a file from that folder, the app refuses by default.
 
 For non-interactive automation, set:
 
@@ -166,7 +160,7 @@ For non-interactive automation, set:
 ALLOW_CLOUD_PRIVATE_DOCS=true
 ```
 
-Only do this if you accept that document text may be sent to the configured cloud provider.
+For a single configured workflow, set `APP_YES=true` or `"yes": true` in `config/workflow.json`. Only do this if you accept that document text may be sent to the configured cloud provider.
 
 ## Edit the Prompt
 
@@ -192,7 +186,7 @@ Example `.env` task:
 
 ```env
 APP_TASK=summarize
-APP_FILE=data/private/tax_doc.pdf
+APP_FILES=data/private/tax_doc.pdf
 ```
 
 Example `config/workflow.json`:
@@ -200,7 +194,7 @@ Example `config/workflow.json`:
 ```json
 {
   "task": "ask",
-  "file": "data/private/bank_statement.pdf",
+  "files": ["data/private/bank_statement.pdf"],
   "question": "What fees were charged?"
 }
 ```
@@ -211,76 +205,88 @@ Then:
 python main.py
 ```
 
-## Direct CLI Examples
-
-Ask a question:
-
-```bash
-python app.py ask --file data/private/bank_statement.pdf --question "Summarize this document"
-```
-
-You can also use the conventional launcher:
-
-```bash
-python main.py ask --file data/private/bank_statement.pdf --question "Summarize this document"
-```
-
-After installing the project, the console command is:
-
-```bash
-local-lm ask --file data/private/bank_statement.pdf --question "Summarize this document"
-```
-
-Summarize:
-
-```bash
-python app.py summarize --file data/private/tax_doc.pdf
-```
-
-Extract JSON using a schema:
-
-```bash
-python app.py extract --file data/private/invoice.pdf --schema schemas/example_schema.json
-```
-
-Start chat:
-
-```bash
-python app.py chat
-```
-
 ## Local RAG Indexing
 
-Indexing is local-only. If `LLM_PROVIDER=cloud`, the `index` command refuses to run. Embeddings are generated with Ollama and persisted under `data/index/`, which is ignored by Git.
+Indexing is local-only. If `LLM_PROVIDER=cloud`, an `index` workflow refuses to run. Embeddings are generated with Ollama and persisted under `data/index/`, which is ignored by Git.
 
-Index all private documents:
+## Direct Multi-File Context Without RAG
 
-```bash
-python app.py index --path data/private --tag financial --metadata owner=me
+For direct document workflows, use `files` for one or more explicit files:
+
+```json
+{
+  "task": "ask",
+  "files": [
+    "data/private/bank_statement.pdf",
+    "data/private/notes.md"
+  ],
+  "question": "What do these files say about monthly cash flow?"
+}
+```
+
+For a single file, `files` can be either a string or a list.
+
+Or use `local_context_folder` to recursively load every supported file inside a folder:
+
+```json
+{
+  "task": "summarize",
+  "local_context_folder": "data/private/financial"
+}
+```
+
+You can use `files`, `local_context_folder`, or both. This does not create a vector index; all loaded context is sent directly to the selected model, so keep the total content small enough for the model's context window.
+
+Index all private documents by configuring:
+
+```json
+{
+  "task": "index",
+  "path": "data/private",
+  "tags": ["financial"],
+  "metadata": ["owner=me"]
+}
 ```
 
 Index with per-document metadata:
 
-```bash
-python app.py index --path data/private --metadata-file schemas/metadata.example.json
+```json
+{
+  "task": "index",
+  "path": "data/private",
+  "metadata_file": "schemas/metadata.example.json"
+}
 ```
 
 Search the local index:
 
-```bash
-python app.py search --query "Find bank fees from March" --tag financial --limit 5
+```json
+{
+  "task": "search",
+  "question": "Find bank fees from March",
+  "tags": ["financial"],
+  "limit": 5
+}
 ```
 
 Ask over indexed documents:
 
-```bash
-python app.py ask-index --question "Which documents mention account maintenance fees?" --tag financial
+```json
+{
+  "task": "ask-index",
+  "question": "Which documents mention account maintenance fees?",
+  "tags": ["financial"]
+}
 ```
 
 Filter by metadata:
 
-```bash
-python app.py search --query "tax withholding" --filter document_type=tax --filter year=2025
+```json
+{
+  "task": "search",
+  "question": "tax withholding",
+  "filters": ["document_type=tax", "year=2025"]
+}
 ```
 
 ### Vector Stores
@@ -310,7 +316,7 @@ Cloud embeddings are intentionally not enabled by default. Add them only for non
 - `data/index/*` is ignored by Git.
 - Local mode can still leak data if `LOCAL_LLM_BASE_URL` points to a remote server.
 - Cloud mode sends document content to the configured provider.
-- `ask-index` can send retrieved private chunks to a cloud LLM if `LLM_PROVIDER=cloud`; it requires `--yes` for private sources.
+- `ask-index` can send retrieved private chunks to a cloud LLM if `LLM_PROVIDER=cloud`; it requires `APP_YES=true`, `"yes": true`, or `ALLOW_CLOUD_PRIVATE_DOCS=true` for private sources.
 - This project is not a substitute for legal, medical, tax, or financial advice.
 
 ## Troubleshooting
@@ -349,7 +355,7 @@ Some PDFs are scanned images. This repo extracts embedded text only. Add OCR lat
 
 ### Cloud mode refuses private files
 
-This is intentional. Use local mode or explicitly pass `--yes` after reviewing the risk.
+This is intentional. Use local mode or explicitly set `APP_YES=true` or `"yes": true` after reviewing the risk.
 
 ### Chroma is not installed
 
