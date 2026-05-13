@@ -1,16 +1,98 @@
 {
-  "task": "chat",
-  "files": [],
-  "local_context_folder": null,
-  "question": null,
-  "schema": null,
-  "path": "data/private",
-  "tags": [],
-  "metadata": [],
-  "metadata_file": null,
-  "filters": [],
-  "limit": 5,
-  "chunk_size": 1200,
-  "overlap": 150,
-  "yes": false
+  "workflow": {
+    "task": "chat",
+    "files": [],
+    "local_context_folder": null,
+    "question": null,
+    "schema": null,
+    "path": "data/private",
+    "tags": [],
+    "metadata": [],
+    "metadata_file": null,
+    "filters": [],
+    "limit": 5,
+    "chunk_size": 1200,
+    "overlap": 150,
+    "yes": false
+  },
+  "templates": {
+    "chat": {
+      "task": "chat"
+    },
+    "ask_single_file": {
+      "task": "ask",
+      "files": "data/private/bank_statement.pdf",
+      "question": "What fees were charged?"
+    },
+    "ask_multiple_files": {
+      "task": "ask",
+      "files": [
+        "data/private/bank_statement.pdf",
+        "data/private/notes.md"
+      ],
+      "question": "What do these files say about monthly cash flow?"
+    },
+    "ask_context_folder": {
+      "task": "ask",
+      "local_context_folder": "data/private/financial",
+      "question": "What are the recurring expenses across these files?"
+    },
+    "summarize_files": {
+      "task": "summarize",
+      "files": [
+        "data/private/tax_doc.pdf",
+        "data/private/receipt.md"
+      ]
+    },
+    "summarize_context_folder": {
+      "task": "summarize",
+      "local_context_folder": "data/private/financial"
+    },
+    "extract": {
+      "task": "extract",
+      "files": [
+        "data/private/invoice.pdf"
+      ],
+      "schema": "schemas/example_schema.json"
+    },
+    "index_private_folder": {
+      "task": "index",
+      "path": "data/private",
+      "tags": [
+        "financial",
+        "taxes"
+      ],
+      "metadata": [
+        "owner=me",
+        "year=2026"
+      ],
+      "metadata_file": "schemas/metadata.example.json",
+      "chunk_size": 1200,
+      "overlap": 150
+    },
+    "search_index": {
+      "task": "search",
+      "question": "Find account maintenance fees",
+      "tags": [
+        "financial"
+      ],
+      "filters": [
+        "year=2026"
+      ],
+      "limit": 5
+    },
+    "ask_index": {
+      "task": "ask-index",
+      "question": "Which tax documents mention withholding?",
+      "tags": [
+        "taxes"
+      ],
+      "filters": [
+        "document_type=tax",
+        "year=2025"
+      ],
+      "limit": 5,
+      "yes": false
+    }
+  }
 }

@@ -193,9 +193,11 @@ Example `config/workflow.json`:
 
 ```json
 {
-  "task": "ask",
-  "files": ["data/private/bank_statement.pdf"],
-  "question": "What fees were charged?"
+  "workflow": {
+    "task": "ask",
+    "files": ["data/private/bank_statement.pdf"],
+    "question": "What fees were charged?"
+  }
 }
 ```
 

@@ -180,12 +180,67 @@ Copy the example once:
 cp config/workflow.example.json config/workflow.json
 ```
 
+The file contains an active `workflow` block and a `templates` catalog. To run a different task, copy one template object into `workflow`, edit paths/questions, then run `python main.py`.
+
+### Workflow Field Reference
+
+These are the supported keys inside the active `workflow` object:
+
+```json
+{
+  "task": "chat",
+  "files": [],
+  "local_context_folder": null,
+  "question": null,
+  "schema": null,
+  "path": "data/private",
+  "tags": [],
+  "metadata": [],
+  "metadata_file": null,
+  "filters": [],
+  "limit": 5,
+  "chunk_size": 1200,
+  "overlap": 150,
+  "yes": false
+}
+```
+
+`task`: Which workflow to run. Supported values are `chat`, `ask`, `summarize`, `extract`, `index`, `search`, and `ask-index`.
+
+`files`: One file path or a list of file paths to load directly into context for `ask`, `summarize`, and `extract`. Can leave empty when using `local_context_folder`, `chat`, `index`, `search`, or `ask-index`.
+
+`local_context_folder`: A folder path to traverse recursively for direct context in `ask`, `summarize`, and `extract`. Supported files inside the folder are loaded without creating a RAG index. Can leave `null` when using `files`.
+
+`question`: The question or search text. Required for `ask`, `search`, and `ask-index`. Not used by `chat`, `summarize`, `extract`, or `index`.
+
+`schema`: Path to a JSON schema file for `extract`. Leave `null` for every other task.
+
+`path`: File or folder path to index for `index`. Defaults to `data/private`. Not used by direct context tasks or search tasks.
+
+`tags`: For RAG. Tags to attach during `index`, or tags to filter by during `search` and `ask-index`. For direct context tasks, leave empty.
+
+`metadata`: For RAG. Extra `key=value` metadata to attach during `index`, such as `owner=me` or `year=2026`.
+
+`metadata_file`: For RAG. Path to a JSON metadata map for `index`, usually `schemas/metadata.example.json` or a file you create from it.
+
+`filters`: For RAG. Metadata filters for `search` and `ask-index`, written as `key=value`, such as `document_type=tax` or `year=2025`.
+
+`limit`: For RAG. Maximum number of retrieved chunks for `search` and `ask-index`. It does not limit direct `files` or `local_context_folder` loading.
+
+`chunk_size`: For RAG. Character length for chunks created during `index`, and for direct prompt chunking before sending context to the model.
+
+`overlap`: Character overlap between chunks during `index`. Direct prompt chunking currently uses the app default.
+
+`yes`: Explicitly confirms cloud processing for private files in a single configured workflow. Keep `false` unless you intentionally accept sending private context to the configured cloud provider.
+
 Example summarize config:
 
 ```json
 {
-  "task": "summarize",
-  "files": ["data/private/tax_doc.pdf"]
+  "workflow": {
+    "task": "summarize",
+    "files": ["data/private/tax_doc.pdf"]
+  }
 }
 ```
 
@@ -193,8 +248,10 @@ For a single file, this shorter form is also accepted:
 
 ```json
 {
-  "task": "summarize",
-  "files": "data/private/tax_doc.pdf"
+  "workflow": {
+    "task": "summarize",
+    "files": "data/private/tax_doc.pdf"
+  }
 }
 ```
 
@@ -202,9 +259,11 @@ Example ask config:
 
 ```json
 {
-  "task": "ask",
-  "files": ["data/private/bank_statement.pdf"],
-  "question": "What fees were charged?"
+  "workflow": {
+    "task": "ask",
+    "files": ["data/private/bank_statement.pdf"],
+    "question": "What fees were charged?"
+  }
 }
 ```
 
@@ -212,12 +271,14 @@ Example multi-file context config:
 
 ```json
 {
-  "task": "ask",
-  "files": [
-    "data/private/bank_statement.pdf",
-    "data/private/notes.md"
-  ],
-  "question": "What do these files say about monthly cash flow?"
+  "workflow": {
+    "task": "ask",
+    "files": [
+      "data/private/bank_statement.pdf",
+      "data/private/notes.md"
+    ],
+    "question": "What do these files say about monthly cash flow?"
+  }
 }
 ```
 
@@ -225,8 +286,10 @@ Example recursive folder context config:
 
 ```json
 {
-  "task": "summarize",
-  "local_context_folder": "data/private/financial"
+  "workflow": {
+    "task": "summarize",
+    "local_context_folder": "data/private/financial"
+  }
 }
 ```
 
@@ -234,13 +297,15 @@ Example local index config:
 
 ```json
 {
-  "task": "index",
-  "path": "data/private",
-  "tags": ["financial", "taxes"],
-  "metadata": ["owner=me", "year=2026"],
-  "metadata_file": "schemas/metadata.example.json",
-  "chunk_size": 1200,
-  "overlap": 150
+  "workflow": {
+    "task": "index",
+    "path": "data/private",
+    "tags": ["financial", "taxes"],
+    "metadata": ["owner=me", "year=2026"],
+    "metadata_file": "schemas/metadata.example.json",
+    "chunk_size": 1200,
+    "overlap": 150
+  }
 }
 ```
 
@@ -248,11 +313,13 @@ Example search config:
 
 ```json
 {
-  "task": "search",
-  "question": "Find account maintenance fees",
-  "tags": ["financial"],
-  "filters": ["year=2026"],
-  "limit": 5
+  "workflow": {
+    "task": "search",
+    "question": "Find account maintenance fees",
+    "tags": ["financial"],
+    "filters": ["year=2026"],
+    "limit": 5
+  }
 }
 ```
 
@@ -260,11 +327,13 @@ Example RAG Q&A config:
 
 ```json
 {
-  "task": "ask-index",
-  "question": "What tax documents mention withholding?",
-  "tags": ["taxes"],
-  "filters": ["document_type=tax", "year=2025"],
-  "limit": 5
+  "workflow": {
+    "task": "ask-index",
+    "question": "What tax documents mention withholding?",
+    "tags": ["taxes"],
+    "filters": ["document_type=tax", "year=2025"],
+    "limit": 5
+  }
 }
 ```
 

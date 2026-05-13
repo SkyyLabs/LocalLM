@@ -33,6 +33,25 @@ def test_load_workflow_config_from_json(tmp_path: Path, monkeypatch) -> None:
     assert workflow.question == "What is this?"
 
 
+def test_load_workflow_config_from_catalog_json(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    config_file = config_dir / "workflow.json"
+    config_file.write_text(
+        '{"workflow": {"task": "ask", "files": ["data/private/doc.txt"], "question": "What is this?"}, '
+        '"templates": {"chat": {"task": "chat"}}}',
+        encoding="utf-8",
+    )
+    settings = Settings(app_config_path=config_file)
+
+    workflow = load_workflow_config(settings)
+
+    assert workflow.task == "ask"
+    assert workflow.files == [Path("data/private/doc.txt")]
+    assert workflow.question == "What is this?"
+
+
 def test_env_values_override_workflow_json(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     config_dir = tmp_path / "config"

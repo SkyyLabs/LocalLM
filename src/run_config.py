@@ -68,6 +68,11 @@ def _load_config_file(path: Path) -> dict[str, Any]:
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise ValueError(f"Workflow config must be a JSON object: {path}")
+    if "workflow" in data:
+        workflow = data["workflow"]
+        if not isinstance(workflow, dict):
+            raise ValueError(f"workflow must be a JSON object: {path}")
+        return workflow
     return data
 
 
