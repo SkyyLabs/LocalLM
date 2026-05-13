@@ -12,6 +12,8 @@ def test_load_settings_defaults_to_local(monkeypatch, tmp_path: Path) -> None:
 
     assert settings.llm_provider == "local"
     assert settings.local_model == "qwen2.5"
+    assert settings.local_embedding_model == "nomic-embed-text"
+    assert settings.vector_store == "chroma"
     assert settings.allow_cloud_private_docs is False
 
 
@@ -23,6 +25,8 @@ def test_load_settings_from_env_file(tmp_path: Path, monkeypatch) -> None:
             [
                 "LLM_PROVIDER=cloud",
                 "CLOUD_LLM_API_KEY=test-key",
+                "LOCAL_EMBEDDING_MODEL=mxbai-embed-large",
+                "VECTOR_STORE=faiss",
                 "ALLOW_CLOUD_PRIVATE_DOCS=true",
             ]
         ),
@@ -33,4 +37,6 @@ def test_load_settings_from_env_file(tmp_path: Path, monkeypatch) -> None:
 
     assert settings.llm_provider == "cloud"
     assert settings.cloud_api_key == "test-key"
+    assert settings.local_embedding_model == "mxbai-embed-large"
+    assert settings.vector_store == "faiss"
     assert settings.allow_cloud_private_docs is True

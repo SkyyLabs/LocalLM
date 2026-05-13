@@ -1,74 +1,87 @@
 from __future__ import annotations
 
-import os
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from pydantic import AliasChoices, Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 ProviderName = Literal["local", "cloud"]
+VectorStoreName = Literal["auto", "chroma", "faiss"]
+TaskName = Literal["ask", "summarize", "extract", "chat", "index", "search", "ask-index"]
 
 
-def _bool_env(value: str | None, default: bool = False) -> bool:
-    if value is None:
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+class Settings(BaseSettings):
+    """Environment-backed runtime settings."""
 
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        populate_by_name=True,
+        enable_decoding=False,
+    )
 
-def load_dotenv(path: Path = Path(".env")) -> dict[str, str]:
-    """Parse a simple .env file without requiring python-dotenv."""
-    values: dict[str, str] = {}
-    if not path.exists():
-        return values
+    llm_provider: ProviderName = Field(default="local", validation_alias="LLM_PROVIDER")
+    local_base_url: str = Field(default="http://localhost:11434", validation_alias="LOCAL_LLM_BASE_URL")
+    local_model: str = Field(default="qwen2.5", validation_alias="LOCAL_LLM_MODEL")
+    cloud_base_url: str = Field(default="https://api.openai.com/v1", validation_alias="CLOUD_LLM_BASE_URL")
+    cloud_model: str = Field(default="gpt-4o-mini", validation_alias="CLOUD_LLM_MODEL")
+    cloud_api_key: str | None = Field(default=None, validation_alias="CLOUD_LLM_API_KEY")
 
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        values[key] = value
-    return values
+    system_prompt_path: Path = Field(default=Path("prompts/system_prompt.md"), validation_alias="SYSTEM_PROMPT_PATH")
+    private_data_dir: Path = Field(default=Path("data/private"), validation_alias="PRIVATE_DATA_DIR")
+    index_dir: Path = Field(default=Path("data/index"), validation_alias="INDEX_DIR")
+    allow_cloud_private_docs: bool = Field(default=False, validation_alias="ALLOW_CLOUD_PRIVATE_DOCS")
 
+    embedding_provider: Literal["local"] = Field(default="local", validation_alias="EMBEDDING_PROVIDER")
+    local_embedding_model: str = Field(default="nomic-embed-text", validation_alias="LOCAL_EMBEDDING_MODEL")
+    vector_store: VectorStoreName = Field(default="chroma", validation_alias="VECTOR_STORE")
 
-@dataclass(frozen=True)
-class Settings:
-    llm_provider: ProviderName = "local"
-    local_base_url: str = "http://localhost:11434"
-    local_model: str = "qwen2.5"
-    cloud_base_url: str = "https://api.openai.com/v1"
-    cloud_model: str = "gpt-4o-mini"
-    cloud_api_key: str | None = None
-    system_prompt_path: Path = Path("prompts/system_prompt.md")
-    private_data_dir: Path = Path("data/private")
-    allow_cloud_private_docs: bool = False
+    app_config_path: Path = Field(default=Path("config/workflow.json"), validation_alias="APP_CONFIG_PATH")
+    app_task: TaskName = Field(default="chat", validation_alias=AliasChoices("APP_TASK", "TASK"))
+    app_file: Path | None = Field(default=None, validation_alias=AliasChoices("APP_FILE", "TASK_FILE"))
+    app_question: str | None = Field(default=None, validation_alias=AliasChoices("APP_QUESTION", "TASK_QUESTION"))
+    app_schema: Path | None = Field(default=None, validation_alias=AliasChoices("APP_SCHEMA", "TASK_SCHEMA"))
+    app_path: Path = Field(default=Path("data/private"), validation_alias=AliasChoices("APP_PATH", "TASK_PATH"))
+    app_tags: list[str] = Field(default_factory=list, validation_alias=AliasChoices("APP_TAGS", "TASK_TAGS"))
+    app_metadata: list[str] = Field(default_factory=list, validation_alias=AliasChoices("APP_METADATA", "TASK_METADATA"))
+    app_metadata_file: Path | None = Field(
+        default=None,
+        validation_alias=AliasChoices("APP_METADATA_FILE", "TASK_METADATA_FILE"),
+    )
+    app_filters: list[str] = Field(default_factory=list, validation_alias=AliasChoices("APP_FILTERS", "TASK_FILTERS"))
+    app_limit: int = Field(default=5, validation_alias=AliasChoices("APP_LIMIT", "TASK_LIMIT"))
+    app_chunk_size: int = Field(default=1200, validation_alias=AliasChoices("APP_CHUNK_SIZE", "TASK_CHUNK_SIZE"))
+    app_overlap: int = Field(default=150, validation_alias=AliasChoices("APP_OVERLAP", "TASK_OVERLAP"))
+    app_yes: bool = Field(default=False, validation_alias=AliasChoices("APP_YES", "TASK_YES"))
 
     @property
     def is_cloud(self) -> bool:
         return self.llm_provider == "cloud"
 
+    @field_validator("local_base_url", "cloud_base_url")
+    @classmethod
+    def strip_trailing_slash(cls, value: str) -> str:
+        return value.rstrip("/")
+
+    @field_validator("app_tags", "app_metadata", "app_filters", mode="before")
+    @classmethod
+    def parse_list_env(cls, value: object) -> object:
+        if value is None or isinstance(value, list):
+            return value
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return []
+            if stripped.startswith("["):
+                return value
+            return [item.strip() for item in stripped.split(",") if item.strip()]
+        return value
+
 
 def load_settings(env_file: Path | None = Path(".env")) -> Settings:
-    file_values: dict[str, str] = {}
-    if env_file is not None:
-        file_values = load_dotenv(env_file)
-
-    def get_env(name: str, default: str | None = None) -> str | None:
-        return os.getenv(name) or file_values.get(name) or default
-
-    provider = (get_env("LLM_PROVIDER", "local") or "local").strip().lower()
-    if provider not in {"local", "cloud"}:
-        raise ValueError("LLM_PROVIDER must be either 'local' or 'cloud'.")
-
-    return Settings(
-        llm_provider=provider,  # type: ignore[arg-type]
-        local_base_url=(get_env("LOCAL_LLM_BASE_URL", "http://localhost:11434") or "").rstrip("/"),
-        local_model=get_env("LOCAL_LLM_MODEL", "qwen2.5") or "qwen2.5",
-        cloud_base_url=(get_env("CLOUD_LLM_BASE_URL", "https://api.openai.com/v1") or "").rstrip("/"),
-        cloud_model=get_env("CLOUD_LLM_MODEL", "gpt-4o-mini") or "gpt-4o-mini",
-        cloud_api_key=get_env("CLOUD_LLM_API_KEY") or None,
-        system_prompt_path=Path(get_env("SYSTEM_PROMPT_PATH", "prompts/system_prompt.md") or ""),
-        private_data_dir=Path(get_env("PRIVATE_DATA_DIR", "data/private") or ""),
-        allow_cloud_private_docs=_bool_env(get_env("ALLOW_CLOUD_PRIVATE_DOCS"), False),
-    )
+    if env_file is None:
+        return Settings(_env_file=None)
+    return Settings(_env_file=env_file)

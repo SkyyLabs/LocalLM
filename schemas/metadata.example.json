@@ -1,0 +1,11 @@
+{
+  "bank_statement.pdf": {
+    "document_type": "bank_statement",
+    "institution": "Example Bank",
+    "year": 2026
+  },
+  "tax_doc.pdf": {
+    "document_type": "tax",
+    "year": 2025
+  }
+}

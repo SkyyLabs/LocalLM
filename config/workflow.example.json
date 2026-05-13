@@ -1,0 +1,15 @@
+{
+  "task": "chat",
+  "file": null,
+  "question": null,
+  "schema": null,
+  "path": "data/private",
+  "tags": [],
+  "metadata": [],
+  "metadata_file": null,
+  "filters": [],
+  "limit": 5,
+  "chunk_size": 1200,
+  "overlap": 150,
+  "yes": false
+}

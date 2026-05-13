@@ -16,3 +16,6 @@ data/private/*
 !data/private/.gitkeep
 data/output/*
 !data/output/.gitkeep
+data/index/*
+!data/index/.gitkeep
+config/workflow.json
